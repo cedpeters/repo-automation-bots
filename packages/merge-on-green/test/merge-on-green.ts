@@ -17,9 +17,12 @@ import {Probot} from 'probot';
 import {resolve} from 'path';
 import nock from 'nock';
 import sinon from 'sinon';
-import {describe, it, beforeEach} from 'mocha';
-
+import {describe, it, beforeEach, afterEach} from 'mocha';
+import * as assert from 'assert';
 import handler from '../src/merge-on-green';
+import {logger} from 'gcf-utils';
+
+const sandbox = sinon.createSandbox();
 
 interface Label {
   name: string;
@@ -159,7 +162,7 @@ describe('merge-on-green', () => {
   beforeEach(() => {
     probot = new Probot({
       // eslint-disable-next-line node/no-extraneous-require
-      Octokit: require('@octokit/rest'),
+      Octokit: require('@octokit/rest').Octokit,
     });
     probot.app = {
       getSignedJsonWebToken() {
@@ -170,6 +173,12 @@ describe('merge-on-green', () => {
       },
     };
     probot.load(handler);
+    sandbox.stub(logger, 'error').throwsArg(0);
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+    nock.cleanAll();
   });
 
   describe('merge-logic', () => {
@@ -764,13 +773,13 @@ describe('merge-on-green', () => {
         'events',
         'pull_request_labeled'
       ));
-      const stub = sinon.stub(handler, 'addPR');
+      const stub = sandbox.stub(handler, 'addPR');
       await probot.receive({
         name: 'pull_request.labeled',
         payload,
         id: 'abc123',
       });
-      console.log('stub called? ' + stub.called);
+      assert.ok(stub.called);
     });
   });
 });

@@ -175,7 +175,7 @@ function handler(app: Application) {
           return JSON.stringify(label);
         })
         .join(', ');
-      app.log.info(`ignoring non-force label action (${labels})`);
+      logger.info(`ignoring non-force label action (${labels})`);
       return;
     }
     const prNumber = context.payload.pull_request.number;
