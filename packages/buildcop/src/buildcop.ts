@@ -27,6 +27,7 @@ import {Application, GitHubAPI, Octokit} from 'probot';
 // eslint-disable-next-line node/no-extraneous-import
 import {LoggerWithTarget} from 'probot/lib/wrap-logger';
 import xmljs from 'xml-js';
+import fetch from 'node-fetch';
 
 const ISSUE_LABEL = 'buildcop: issue';
 const FLAKY_LABEL = 'buildcop: flaky';
@@ -117,6 +118,7 @@ export function buildcop(app: Application) {
     let results: TestResults;
     if (context.payload.xunitXML) {
       const xml = Buffer.from(context.payload.xunitXML, 'base64').toString();
+      await buildcop.sendToFlaky(xml, repo, owner, buildURL, commit);
       results = buildcop.findTestResults(xml);
     } else {
       if (context.payload.testsFailed === undefined) {
@@ -787,6 +789,44 @@ buildcop.groupedTestCase = (pkg: string): TestCase => {
 buildcop.formatGroupedTitle = (pkg: string): string => {
   return buildcop.formatTestCase(buildcop.groupedTestCase(pkg));
 };
+
+buildcop.sendToFlaky = async (
+  (xml : string) : TestResults,
+  repo: string,
+  owner: string,
+  buildUrl: string,
+  commit: string
+) => {
+  const timestamp = new Date();
+  var envData = {
+    os: null,
+    ref: null,
+    matrix: null,
+    tag: null
+  }
+
+  const metadata = {
+    repoId: repo,
+    organization: owner,
+    timestamp,
+    url: buildUrl,
+    environment: envData,
+    buildId: buildUrl,
+    sha: commit,
+    name: '',
+    description: '',
+    buildmessage: ''
+  };
+
+  await fetch('https://flaky-dashboard.web.app/api/build/xml', {
+        method: 'post',
+        body: JSON.stringify({
+          data: TestResults,
+          metadata: metadata
+        }),
+        headers: { 'Content-Type': 'application/json', Authorization: process.env.FLAKY_POSTING_TOKEN }
+      });
+}
 
 buildcop.findTestResults = (xml: string): TestResults => {
   const obj = xmljs.xml2js(xml, {compact: true}) as xmljs.ElementCompact;
